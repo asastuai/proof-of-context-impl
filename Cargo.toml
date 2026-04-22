@@ -1,0 +1,27 @@
+[package]
+name = "proof-of-context"
+version = "0.1.0-scaffold"
+edition = "2021"
+authors = ["Juan Cruz Maisu <juancmaisu@outlook.com>"]
+license = "MIT OR Apache-2.0"
+description = "Reference implementation of Proof-of-Context: attestation-as-settlement primitive for decentralized ML. See paper at github.com/asastuai/proof-of-context."
+repository = "https://github.com/asastuai/proof-of-context-impl"
+homepage = "https://github.com/asastuai/proof-of-context"
+readme = "README.md"
+keywords = ["verification", "ml", "cryptography", "decentralized", "settlement"]
+categories = ["cryptography"]
+
+[dependencies]
+# Phase 1 (scaffold): no runtime deps. Traits + unimplemented!() bodies only.
+# Phase 2 will add: sha2, ed25519-dalek, hex, thiserror.
+# Phase 3 will add: TEE-attestation backend (tdx-quote or similar), Drand client, block-RPC client.
+
+[dev-dependencies]
+# Smoke tests only at scaffold stage.
+
+[profile.release]
+# Empty block — defaults are fine at scaffold stage.
+
+[lib]
+name = "proof_of_context"
+path = "src/lib.rs"
