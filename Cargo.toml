@@ -1,6 +1,6 @@
 [package]
 name = "proof-of-context"
-version = "0.1.0-scaffold"
+version = "0.2.0"
 edition = "2021"
 authors = ["Juan Cruz Maisu <juancmaisu@outlook.com>"]
 license = "MIT OR Apache-2.0"
@@ -12,15 +12,27 @@ keywords = ["verification", "ml", "cryptography", "decentralized", "settlement"]
 categories = ["cryptography"]
 
 [dependencies]
-# Phase 1 (scaffold): no runtime deps. Traits + unimplemented!() bodies only.
-# Phase 2 will add: sha2, ed25519-dalek, hex, thiserror.
-# Phase 3 will add: TEE-attestation backend (tdx-quote or similar), Drand client, block-RPC client.
+# Phase 2 primitives:
+#   - sha2 for Merkle commitments over ExecutionContextRoot
+#   - ed25519-dalek for commitment signing / verification
+#   - thiserror for idiomatic error-type derivations
+#   - serde for on-wire / on-disk (de)serialization of public types
+#   - hex for human-readable hash rendering in errors and traces
+sha2 = "0.10"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+hex = "0.4"
+
+# Phase 3 will add: TEE-attestation backend (tdx-quote or similar),
+# Drand client, block-RPC client.
 
 [dev-dependencies]
-# Smoke tests only at scaffold stage.
+# rand with std_rng used by the mock backend for deterministic test keys
+rand = "0.8"
 
 [profile.release]
-# Empty block — defaults are fine at scaffold stage.
+# Defaults are fine.
 
 [lib]
 name = "proof_of_context"

@@ -5,13 +5,16 @@
 //! compromise (TDXdown-class attacks) is this attestation chain, not
 //! the three clocks.
 //!
-//! Phase 1 defines the shape; Phase 2 will implement TDX quote + H100
-//! attestation verification against known-good measurement values.
+//! Phase 2 defines the shape and provides a MockSoftware verifier.
+//! Phase 3 will implement TDX quote + H100 attestation verification
+//! against known-good measurement values.
 
-/// A raw TEE attestation chain. Phase 1 carries bytes opaquely; Phase 2
+use serde::{Deserialize, Serialize};
+
+/// A raw TEE attestation chain. Phase 2 carries bytes opaquely; Phase 3
 /// introduces a typed struct distinguishing TDX quote, platform
 /// certificate chain, and H100 attestation report.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttestationChain {
     /// Opaque attestation bytes (vendor-specific format).
     pub payload: Vec<u8>,
@@ -20,7 +23,7 @@ pub struct AttestationChain {
 }
 
 /// Supported attestation vendors / formats.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttestationVendor {
     /// Intel TDX quote with platform certificate chain.
     IntelTdx,

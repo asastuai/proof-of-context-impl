@@ -6,9 +6,11 @@
 //! per-type threshold so operators can tune the economic envelope of
 //! what counts as "still worth settling on".
 
+use serde::{Deserialize, Serialize};
+
 /// The four freshness types, one enum variant each. Each variant
 /// corresponds to an independent axis of staleness.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FreshnessType {
     /// `f_c` — computational freshness. Elapsed time between when a
     /// computation was performed and when its attestation was submitted.
@@ -31,7 +33,7 @@ pub enum FreshnessType {
 /// Default constructors are provided for common deployment targets
 /// (e.g., [`Self::default_base_mainnet`]) using the empirically-justified
 /// values from §9 of the paper.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FreshnessThresholds {
     // Triple-anchor skew thresholds (§9).
     /// Allowed skew in block height between committed and canonical anchor.
