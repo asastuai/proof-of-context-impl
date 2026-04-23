@@ -65,6 +65,7 @@ pub mod commitment;
 pub mod context;
 pub mod error;
 pub mod freshness;
+pub mod mock;
 pub mod renewal;
 pub mod settle;
 
