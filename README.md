@@ -94,7 +94,7 @@ This crate is part of an evolving body of work by Juan Cruz Maisu, independent r
 - [Proof of Context (papers)](https://github.com/asastuai/proof-of-context) — v0.6 framework + v0.1 applied to verifiable inference
 - [Proof of Context — reference implementation](https://github.com/asastuai/proof-of-context-impl) — this crate
 - [SUR Protocol](https://github.com/asastuai/sur-protocol) — perp DEX with agent-native execution layer
-- [Qwen3 14B inference benchmark](https://github.com/asastuai/qwen-cloud-benchmark) — empirical companion to PoC-Inference v0.1
 - [Hermetic Computing](https://github.com/asastuai/kybalion) — Rust framework formalizing hermetic principles as computational primitives
+- [intent-cipher](https://crates.io/crates/intent-cipher) — published crate, stream cipher with intent-keyed schedule
 
 **Status:** open to research-engineering and applied-research roles in inference attestation, decentralized ML infrastructure, and agent-native systems. Remote, full-time, any timezone.
