@@ -6,7 +6,7 @@ Reference implementation of the **proof-of-context** primitive: an *attestation-
 
 **Position paper:** [github.com/asastuai/proof-of-context](https://github.com/asastuai/proof-of-context) — v0.6 (22 April 2026). Read the paper first; this crate encodes the architecture it names.
 
-**Status:** `v0.1.0-scaffold`. Traits and types are in place, all primitive implementations are `unimplemented!()` stubs. The crate compiles and the smoke tests pass. No cryptographic claim is enforced yet.
+**Status:** `v0.2.0`. Phase 2 shipped — SHA-256 Merkle commitments over the execution-context root, Ed25519 signing / verification, `MockCommitter`, `MockVerifier`, `MockSettlementGate` with pluggable verifier generic. End-to-end integration tests pass. Phase 3 (TDX + H100 attestation chain, Drand client, block-RPC client) is the next milestone.
 
 ---
 
@@ -32,26 +32,6 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full mapping from paper secti
 | §7 constraint 5 — Prospective-only bumps | `renewal` | `Renewal`, `RenewalOutcome` |
 | §7 constraint 6 + §9 | `attestation` | `AttestationChain`, `AttestationVerifier` |
 
-## Scaffold-stage design
-
-Per the project's working-bible, the current phase is **Phase 2: Scaffold** — structure compiles, nothing does anything useful. Implementations will arrive in subsequent phases.
-
-```rust
-use proof_of_context::{
-    ExecutionContextRoot, TripleAnchor, FreshnessThresholds,
-    context::{SamplingParams, AttentionImpl, PrecisionMode, InferenceConfig},
-};
-
-// All types are constructible.
-let thresh = FreshnessThresholds::default_base_mainnet();
-let anchor = TripleAnchor::new(/*block*/ 100, /*tee_ns*/ 0, /*drand*/ 50_000);
-
-// Calling unimplemented methods panics with "Phase 2: ..." messages
-// that tell the reader exactly what is yet to be built.
-```
-
-Every `unimplemented!()` body in the crate includes a brief description of what the future implementation must do.
-
 ## Build and test
 
 ```bash
@@ -59,7 +39,24 @@ cargo build
 cargo test
 ```
 
-Both should succeed on a stock Rust toolchain (2021 edition). No external dependencies at scaffold stage.
+Both should succeed on a stock Rust toolchain (2021 edition). The mock backend has no dependencies beyond `sha2`, `ed25519-dalek`, `serde`, and `thiserror`.
+
+## EigenCloud case study
+
+End-to-end demo positioning proof-of-context as the freshness layer above an `EigenCompute` / `EigenAI`-style verifiable-execution primitive:
+
+```bash
+cargo run --example eigencompute_freshness_receipt
+```
+
+The example walks the honest path, the stale path (where re-execution still agrees but the receipt has aged past its window), and the four cheating modalities from `Proof of Context applied to Verifiable Inference (v0.1)`:
+
+- **M1** model substitution — caught by output-hash mismatch on canonical re-execution
+- **M2** request mutation — caught by `ExecutionContextRoot` Merkle disagreement
+- **M3** billing inflation — caught by output-hash binding to actual delivered bytes
+- **M4** capacity falsification — caught by attestation-chain vendor / payload mismatch
+
+Programmatic equivalents live in `tests/eigencompute_flow.rs`. The motivation: `EigenVerify-Objective` answers *"was the computation deterministic?"* — proof-of-context answers the orthogonal economic question *"is the result still valid to settle on?"*.
 
 ## Roadmap
 
