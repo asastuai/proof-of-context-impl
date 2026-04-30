@@ -18,7 +18,7 @@ Proof-of-context sits on top of those primitives and gates payment against a *fr
 
 This crate provides the Rust types and traits for building such a protocol layer.
 
-## Architecture at a glance
+## ◊ Architecture at a glance
 
 See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full mapping from paper sections to crate modules.
 
@@ -123,3 +123,7 @@ This crate is part of an evolving body of work by Juan Cruz Maisu, independent r
 - [intent-cipher](https://crates.io/crates/intent-cipher) — published crate, stream cipher with intent-keyed schedule
 
 **Status:** open to research-engineering and applied-research roles in inference attestation, decentralized ML infrastructure, and agent-native systems. Remote, full-time, any timezone.
+
+---
+
+Juan Cruz Maisú ♥
