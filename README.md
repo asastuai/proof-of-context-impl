@@ -58,6 +58,24 @@ The example walks the honest path, the stale path (where re-execution still agre
 
 Programmatic equivalents live in `tests/eigencompute_flow.rs`. The motivation: `EigenVerify-Objective` answers *"was the computation deterministic?"* — proof-of-context answers the orthogonal economic question *"is the result still valid to settle on?"*.
 
+## Multi-agent orchestration
+
+Standalone runnable demo of a 3-agent orchestration pipeline that wires the proof-of-context primitives into an agent runtime:
+
+```bash
+cargo run --example multi_agent_orchestrator
+```
+
+The example covers:
+
+- **Agent runtime** — a uniform `Agent` trait implemented by three concrete agents covering distinct patterns: I/O (`OraclePriceAgent`), pure compute (`DecisionAgent`), state mutation (`SettlementAgent`).
+- **Orchestration** — a sequential `Orchestrator` that routes tasks between agents and threads a shared `MemoryStore` through them.
+- **Reliability** — typed `AgentError::{Transient, Permanent}` driving retry with exponential backoff or short-circuit on permanent failure.
+- **Observability** — pluggable `Observer` trait with default `ConsoleObserver` emitting structured events at every agent boundary.
+- **Verifiability** — each successful agent step produces a `FreshnessCommitment`; the orchestrator chains the per-step commitments and seals the chain with a SHA-256 over the ordered signing digests.
+
+Four scenarios run in sequence: honest path, retry-then-success (oracle fails twice then succeeds), permanent failure (oracle endpoint unreachable, pipeline short-circuits), and a chain-hash integrity check. Programmatic equivalents in `tests/multi_agent_orchestrator_flow.rs` (6 tests).
+
 ## Roadmap
 
 See [`ROADMAP.md`](./ROADMAP.md) for phased plans. Rough order:
