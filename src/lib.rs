@@ -69,6 +69,10 @@ pub mod mock;
 pub mod renewal;
 pub mod settle;
 
+/// Real-anchor clients (Drand + EVM RPC). Opt in with `--features real-anchors`.
+#[cfg(feature = "real-anchors")]
+pub mod clients;
+
 pub use anchor::TripleAnchor;
 pub use commitment::{ContextCommitter, FreshnessCommitment};
 pub use context::ExecutionContextRoot;

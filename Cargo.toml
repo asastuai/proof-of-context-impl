@@ -11,6 +11,16 @@ readme = "README.md"
 keywords = ["verification", "ml", "cryptography", "decentralized", "settlement"]
 categories = ["cryptography"]
 
+[features]
+# Default: pure crypto + types, no HTTP deps. Suitable for embedding the types
+# into protocols, indexers, verifiers that get anchors from elsewhere.
+default = []
+
+# Enable the `clients` module: real Drand + EVM block-RPC fetchers that build
+# a `TripleAnchor` against live mainnet sources. Adds ureq + serde_json as
+# transitive deps. Opt in only when you actually need to fetch.
+real-anchors = ["dep:ureq", "dep:serde_json"]
+
 [dependencies]
 # Phase 2 primitives:
 #   - sha2 for Merkle commitments over ExecutionContextRoot
@@ -24,8 +34,14 @@ thiserror = "1"
 serde = { version = "1", features = ["derive"] }
 hex = "0.4"
 
-# Phase 3 will add: TEE-attestation backend (tdx-quote or similar),
-# Drand client, block-RPC client.
+# Phase 3 (real anchors, opt-in):
+#   - ureq is a small, sync, blocking HTTP client (no tokio runtime required)
+#   - serde_json parses Drand and EVM JSON-RPC responses
+ureq = { version = "2", optional = true, default-features = false, features = ["json", "tls"] }
+serde_json = { version = "1", optional = true }
+
+# Phase 4 will add: TEE-attestation backend (tdx-quote or similar). The TEE
+# clock remains best-effort scaffolded until then.
 
 [dev-dependencies]
 # rand with std_rng used by the mock backend for deterministic test keys

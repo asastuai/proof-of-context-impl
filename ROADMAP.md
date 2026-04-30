@@ -39,13 +39,24 @@ Phase numbering follows the Working Bible protocol used throughout the author's 
 
 ## Phase 3 — TEE and network backends (target `v0.3`)
 
+### Phase 3a — Network clients (LANDED, `v0.3.0-clients`)
+
+**Output:**
+- `clients::DrandHttpClient` — fetches the latest round from a public Drand mirror (Cloudflare default).
+- `clients::BaseRpcClient` — fetches the latest block height via `eth_blockNumber` JSON-RPC.
+- `clients::RealAnchorBuilder` — composes both into a live `TripleAnchor`. The TEE clock is filled with system time as a placeholder until Phase 3b.
+- Feature-gated under `--features real-anchors` so the default build stays pure crypto + types with no HTTP deps.
+- 3 integration tests with stub clients + 3 live tests (`#[ignore]`-gated) that hit real Drand and Base mainnet.
+
+**Gate achieved:** `cargo test --features real-anchors --lib -- --ignored live` succeeds against live Drand mainnet and Base mainnet RPC.
+
+### Phase 3b — TEE backend (pending)
+
 **Goals:**
 - TDX quote parser with platform-certificate-chain verification
 - H100 attestation report parser
 - Known-good measurement registry (hash set maintained in-crate or fetched from a trust anchor)
-- Drand mainnet client (HTTP to the Cloudflare mirror, with fallback to the primary endpoint)
-- Block-height client for Base (JSON-RPC)
-- Integration of all three into a `TeeCommitter` that replaces the mock
+- Integration of TEE backend into a `TeeCommitter` that replaces the mock
 - Empirical re-measurement of the triple-anchor skew thresholds in a live testnet
 
 **Gate:** A worker running inside a TDX enclave on a live testnet commits, and a separate verifier node on the same testnet settles, with no mocks anywhere in the path.

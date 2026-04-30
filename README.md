@@ -6,7 +6,7 @@ Reference implementation of the **proof-of-context** primitive: an *attestation-
 
 **Position paper:** [github.com/asastuai/proof-of-context](https://github.com/asastuai/proof-of-context) — v0.6 (22 April 2026). Read the paper first; this crate encodes the architecture it names.
 
-**Status:** `v0.2.0`. Phase 2 shipped — SHA-256 Merkle commitments over the execution-context root, Ed25519 signing / verification, `MockCommitter`, `MockVerifier`, `MockSettlementGate` with pluggable verifier generic. End-to-end integration tests pass. Phase 3 (TDX + H100 attestation chain, Drand client, block-RPC client) is the next milestone.
+**Status:** `v0.3.0-clients`. Phase 2 shipped — SHA-256 Merkle commitments over the execution-context root, Ed25519 signing / verification, `MockCommitter`, `MockVerifier`, `MockSettlementGate` with pluggable verifier generic. **Phase 3a (this release) adds the real-anchor network clients**: live Drand round fetcher (Cloudflare mirror) and EVM block-RPC fetcher (`eth_blockNumber`), composable into a `TripleAnchor` against live mainnet. Feature-gated under `--features real-anchors`. Phase 3b (TDX + H100 attestation chain) is the next milestone.
 
 ---
 
@@ -37,9 +37,19 @@ See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full mapping from paper secti
 ```bash
 cargo build
 cargo test
+
+# Optional: enable the real-anchor clients (Drand + EVM RPC fetchers).
+cargo build --features real-anchors
+cargo test --features real-anchors
+
+# Run live integration tests that hit Drand mainnet + Base RPC (opt-in):
+cargo test --features real-anchors --lib -- --ignored live
 ```
 
-Both should succeed on a stock Rust toolchain (2021 edition). The mock backend has no dependencies beyond `sha2`, `ed25519-dalek`, `serde`, and `thiserror`.
+The default build has no HTTP dependency. With `--features real-anchors` the
+crate adds `ureq` + `serde_json` and exposes `clients::DrandHttpClient`,
+`clients::BaseRpcClient`, and `clients::RealAnchorBuilder` for fetching live
+clocks. See `tests/real_anchors_flow.rs` for an end-to-end example.
 
 ## EigenCloud case study
 
