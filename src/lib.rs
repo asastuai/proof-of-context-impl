@@ -7,10 +7,13 @@
 //! for the conceptual framework. This crate translates that framework into
 //! Rust traits and types.
 //!
-//! **Status:** scaffold. All primitive implementations are `unimplemented!()`
-//! stubs. The goal of the 0.1.0-scaffold release is that the structure
-//! compiles and that readers can see the architecture without needing to
-//! read any implementation logic.
+//! **Status:** Phase 2 (v0.2). The core primitives are implemented with real
+//! cryptography — `ExecutionContextRoot::merkle_root` (SHA-256 over the
+//! canonical preimage), Ed25519 commitment signing and verification, and the
+//! triple-anchor divergence check — and exercised end-to-end (commit → verify
+//! → settle → reject-stale) by a software-key test suite. TEE-backed
+//! attestation and the canonical-state oracle for model/input freshness are
+//! Phase 3; see `ROADMAP.md`.
 //!
 //! ## One-sentence framing
 //!

@@ -1,9 +1,13 @@
 //! TEE attestation chain verification.
 //!
-//! As established in §9 of the paper, the triple-anchor defense operates
-//! under a *valid TEE attestation chain*. Defense against enclave
-//! compromise (TDXdown-class attacks) is this attestation chain, not
-//! the three clocks.
+//! As established in the paper (§9.4, §11), the triple-anchor operates
+//! under a valid TEE attestation chain — but attestation verifies
+//! launch-time *code* integrity, not the runtime *timing* channel. A
+//! TDXdown-class timing compromise passes attestation while violating the
+//! honest-clock assumption (paper §9.4, (H3b)); it is caught by neither
+//! attestation nor the three clocks. This module verifies the attestation
+//! chain (code identity); the honest-clock assumption is a separate,
+//! explicit trust assumption the protocol carries, not one provided here.
 //!
 //! Phase 2 defines the shape and provides a MockSoftware verifier.
 //! Phase 3 will implement TDX quote + H100 attestation verification

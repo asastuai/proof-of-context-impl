@@ -7,8 +7,10 @@
 //!
 //! **Important threat-model caveat** (paper §9): the triple anchor is
 //! *not* a defense against a compromised TEE — an enclave observes the
-//! other two clocks and can echo them. Defense against TEE compromise is
-//! the attestation chain (see [`crate::attestation`]), not the anchor.
+//! other two clocks and can echo them. Attestation defends enclave *code*
+//! integrity (see [`crate::attestation`]); a *timing-channel* compromise
+//! (TDXdown-class) is caught by neither the anchor nor attestation, and is
+//! carried as the explicit honest-clock assumption (paper §9.4, (H3b)).
 //! The anchor defends against accidental skew and single-clock failure
 //! under the assumption of a valid attestation chain.
 

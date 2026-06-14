@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-This document maps the conceptual framework of the paper to the Rust module structure of this crate. Read alongside the position paper at [github.com/asastuai/proof-of-context](https://github.com/asastuai/proof-of-context) v0.6.
+This document maps the conceptual framework of the paper to the Rust module structure of this crate. Read alongside the position paper at [github.com/asastuai/proof-of-context](https://github.com/asastuai/proof-of-context) v0.7.
 
 ---
 
@@ -24,7 +24,7 @@ Each layer is a trait boundary so that alternate backends can plug in (TEE-only,
 
 Encodes the three-clock design from §7 constraint 6 of the paper. A triple anchor bundles a block height, a TEE-reported timestamp, and a Drand round. Each clock has orthogonal failure physics; divergence beyond skew tolerances is cause for slash.
 
-**Honest threat model reminder** (paper §9): the triple anchor is a defense against *accidental* skew and isolated single-clock failure *under* a valid TEE attestation chain. It is *not* a defense against a compromised enclave, which observes the other two clocks and can echo them. Defense against TEE compromise lives in `attestation`.
+**Honest threat model reminder** (paper §9.4, §11): the triple anchor is a defense against *accidental* skew and isolated single-clock failure *under* a valid TEE attestation chain. It is *not* a defense against a compromised enclave, which observes the other two clocks and can echo them. Attestation (`attestation`) verifies launch-time *code* integrity; a *timing-channel* compromise (TDXdown-class) passes attestation yet is caught by neither attestation nor the anchor — it is carried as the explicit honest-clock assumption (paper §9.4, (H3b)).
 
 ### `context` — `ExecutionContextRoot`
 
@@ -77,7 +77,7 @@ A hand-rolled error enum at scaffold stage. Will be converted to `thiserror` in 
 ## Design invariants the crate enforces by shape
 
 - **Commitment → Gate flow is one-directional.** A commitment is produced, then verified, then gated. Types don't permit settling a commitment without gating, and don't permit gating without verification (by trait bounds at call sites, enforced in future concrete wiring).
-- **Threat model is consistent across modules.** The triple-anchor protects against accidental skew only; every doc comment in `anchor` says so. The defense against enclave compromise is the `attestation` layer. No module silently upgrades the security claim.
+- **Threat model is consistent across modules.** The triple-anchor protects against accidental skew only; every doc comment in `anchor` says so. Attestation covers enclave *code* integrity; a *timing-channel* compromise (TDXdown-class) is covered by neither the anchor nor attestation, and is carried as the explicit honest-clock assumption (paper §9.4, (H3b)). No module silently upgrades the security claim.
 - **Freshness is per-type, not scalar.** Rejection returns a vector of violated `FreshnessType`s, not a boolean or a score. This forces protocol authors to think about which axis failed and emit the appropriate economic event.
 - **Settlement windows are explicit parameters.** `FreshnessThresholds` carries `max_fc_blocks`, `max_fm_epochs`, `max_fi_blocks`, `max_fs_blocks` as named fields. No implicit defaults hidden inside the gate.
 
