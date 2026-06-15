@@ -66,11 +66,11 @@ Implements the prospective-only root bump semantics of §7 constraint 5. When th
 
 ### `attestation` — `AttestationChain`, `AttestationVerifier`, `AttestationVendor`
 
-Verifies the TEE attestation chain that anchors the commitment's signing key identity to a known-good enclave measurement. Phase 1 carries bytes opaquely; Phase 2 will introduce concrete parsers for TDX, SEV-SNP, and H100 attestation formats.
+Verifies the TEE attestation chain that anchors the commitment's signing key identity to a known-good enclave measurement. In v0.2 the chain is carried opaquely with a `MockSoftware` vendor tag; concrete parsers for TDX, SEV-SNP, and H100 attestation formats are a Phase-3 task.
 
 ### `error` — `PocError`
 
-A hand-rolled error enum at scaffold stage. Will be converted to `thiserror` in Phase 2 once a dependency is introduced.
+`PocError` is a `thiserror`-derived error enum (introduced in v0.2).
 
 ---
 
@@ -83,14 +83,14 @@ A hand-rolled error enum at scaffold stage. Will be converted to `thiserror` in 
 
 ---
 
-## What Phase 2 will introduce
+## Phase status
 
-Phase 2 is the first real-cryptography phase. Expected additions:
+Phase 2 (the first real-cryptography phase) landed in v0.2:
 
 - `sha2` for Merkle commitments over `ExecutionContextRoot`
 - `ed25519-dalek` for commitment signatures
-- A concrete `MockCommitter` and `MockSettlementGate` that exercise the full flow end-to-end using software keys (for tests, not for economic settlement)
+- a concrete `MockCommitter` and `MockSettlementGate` exercising the full commit → verify → settle flow end-to-end with software keys (for tests, not for economic settlement)
 - `thiserror` replacing the hand-rolled error enum
 - Serde implementations on all public structs
 
-Phase 3 introduces the TEE backend (TDX quote parser + H100 attestation verifier), a Drand client, and a JSON-RPC block-height reader. Phase 4 is the SUR Protocol integration. See [`ROADMAP.md`](./ROADMAP.md).
+Phase 3 introduces the TEE backend (TDX quote parser + H100 attestation verifier) and live anchor clients; the Drand and JSON-RPC block-height clients have already landed under the `real-anchors` feature (Phase 3a), with the TEE backend (Phase 3b) pending. Phase 4 is the SUR Protocol integration. See [`ROADMAP.md`](./ROADMAP.md).
