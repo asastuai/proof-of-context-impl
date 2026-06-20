@@ -130,7 +130,7 @@ pub use context::ExecutionContextRoot;
 pub use error::PocError;
 pub use freshness::{FreshnessThresholds, FreshnessType};
 pub use oracle::{CanonicalStateOracle, SplitOracle};
-pub use renewal::Renewal;
+pub use renewal::{Renewal, RenewalOutcome, WindowedRenewal};
 
 #[cfg(feature = "oracle-fi")]
 pub use input_freshness::{BaseOracleInputOracle, InputAttestation, InputFreshnessWitness};
