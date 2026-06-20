@@ -31,6 +31,15 @@ pub const DRAND_GENESIS_UNIX: u64 = 1_595_431_050;
 /// Drand mainnet period in seconds.
 pub const DRAND_PERIOD_SECS: u64 = 30;
 
+/// Base mainnet genesis block (block 0) emission time, Unix seconds.
+/// 2023-06-15 00:35:47 UTC, per the Base mainnet explorer. Used only to
+/// derive wall-time from a block height for the `real-anchors` consistency
+/// leg; not referenced under the default (pure-crypto) feature.
+pub const BASE_MAINNET_GENESIS_UNIX: u64 = 1_686_789_347;
+
+/// Base L2 block period in seconds (OP Stack, 2 s/block).
+pub const BASE_BLOCK_PERIOD_SECS: u64 = 2;
+
 /// A commitment to all three clocks at the moment the worker signed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TripleAnchor {
@@ -71,6 +80,59 @@ impl TripleAnchor {
         let tee_delta_ns = abs_diff_u128(self.tee_timestamp, other.tee_timestamp);
         let drand_delta = abs_diff_u64(self.drand_round, other.drand_round);
         AnchorSkew { block_delta, tee_delta_ns, drand_delta }
+    }
+
+    /// Wall-clock time in Unix seconds implied by the TEE timestamp
+    /// (which is recorded in Unix nanoseconds).
+    pub fn tee_wall_time_secs(&self) -> u64 {
+        (self.tee_timestamp / 1_000_000_000u128) as u64
+    }
+
+    /// Internal consistency of *this* anchor's clocks — a property of the
+    /// anchor alone, **not** a comparison against another anchor.
+    ///
+    /// This is the `consistent` predicate the settlement gate enforces
+    /// (paper §9, refined). It detects a tampered or desynced commit clock:
+    /// the wall-times implied by the anchor's three independent clocks must
+    /// agree with each other within tolerance.
+    ///
+    /// - **TEE ↔ Drand** is always checked. Drand rounds are quantized to
+    ///   30 s, so the tolerance is `tee_skew_secs + drand_skew × 30 s`.
+    /// - **Block ↔ Drand** is checked only under the `real-anchors` feature,
+    ///   which supplies a block→time reference (Base genesis + h × 2 s).
+    ///   Under the default (pure-crypto) feature there is no block→time
+    ///   reference, so the block leg is skipped — exactly as the spec
+    ///   prescribes.
+    ///
+    /// Returns `true` when the anchor is internally consistent.
+    pub fn internally_consistent(
+        &self,
+        thresholds: &crate::freshness::FreshnessThresholds,
+    ) -> bool {
+        let drand_secs = self.drand_wall_time_secs();
+        let tee_secs = self.tee_wall_time_secs();
+
+        // TEE ↔ Drand: tolerate the configured TEE skew plus the Drand
+        // quantization slack (drand_skew rounds × period).
+        let tee_drand_tol =
+            thresholds.tee_skew_secs + thresholds.drand_skew.saturating_mul(DRAND_PERIOD_SECS);
+        if abs_diff_u64(tee_secs, drand_secs) > tee_drand_tol {
+            return false;
+        }
+
+        // Block ↔ Drand: only when a block→time reference is compiled in.
+        #[cfg(feature = "real-anchors")]
+        {
+            let block_secs = BASE_MAINNET_GENESIS_UNIX
+                + self.block_height.saturating_mul(BASE_BLOCK_PERIOD_SECS);
+            let block_tol = thresholds.block_skew.saturating_mul(BASE_BLOCK_PERIOD_SECS)
+                + thresholds.drand_skew.saturating_mul(DRAND_PERIOD_SECS);
+            if abs_diff_u64(block_secs, drand_secs) > block_tol {
+                return false;
+            }
+        }
+
+        true
     }
 
     /// Return `true` if the three clocks diverge beyond any of the given

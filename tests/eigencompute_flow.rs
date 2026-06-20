@@ -19,7 +19,7 @@ use proof_of_context::{
         SamplingParams,
     },
     freshness::{FreshnessThresholds, FreshnessType},
-    mock::{MockCommitter, MockSettlementGate, MockVerifier},
+    mock::{MockCanonicalStateOracle, MockCommitter, MockSettlementGate, MockVerifier},
     settle::{SettlementGate, SettlementResult},
     PocError,
 };
@@ -79,9 +79,15 @@ fn make_committer(seed: u64) -> MockCommitter {
     MockCommitter::new(signing_key, "eigencompute-worker")
 }
 
-const COMMIT_BLOCK: u64 = 281_520_119;
-const COMMIT_TEE_NS: u128 = 1_745_900_000_000_000_000;
-const COMMIT_DRAND: u64 = 60_000;
+// Fully internally-consistent commit anchor: all three clocks agree on one
+// wall-time (~2025-04-29). drand_wall = DRAND_GENESIS (1_595_431_050) +
+// 5_015_631 × 30 = 1_745_899_980 s; COMMIT_TEE_NS is that in ns; and
+// COMMIT_BLOCK derives from Base genesis (1_686_789_347 + 29_555_316 × 2 =
+// 1_745_899_979 s, within tolerance). So `consistent` passes under both the
+// default (TEE↔Drand) and `real-anchors` (block↔Drand) features.
+const COMMIT_BLOCK: u64 = 29_555_316;
+const COMMIT_TEE_NS: u128 = 1_745_899_980_000_000_000;
+const COMMIT_DRAND: u64 = 5_015_631;
 
 fn commit_anchor() -> TripleAnchor {
     TripleAnchor::new(COMMIT_BLOCK, COMMIT_TEE_NS, COMMIT_DRAND)
@@ -110,17 +116,17 @@ fn canonical_input_manifest() -> Hash32 {
 #[test]
 fn honest_path_clears() {
     let committer = make_committer(0x100);
-    let gate = MockSettlementGate::new(MockVerifier::new());
+    let gate = MockSettlementGate::new(MockVerifier::new(), MockCanonicalStateOracle::always_fresh());
     let thresholds = FreshnessThresholds::default_base_mainnet();
 
     let root = build_root(canonical_weights(), canonical_prompt(), canonical_input_manifest());
     let output = run_inference(&canonical_weights(), &canonical_prompt());
     let receipt = committer
-        .commit(root, hash_output(&output), commit_anchor())
+        .commit(root.clone(), hash_output(&output), commit_anchor())
         .unwrap();
 
     let result = gate
-        .verify_and_settle(&receipt, &fresh_now(), &thresholds)
+        .verify_and_settle(&receipt, &root, &fresh_now(), &thresholds)
         .unwrap();
     assert_eq!(result, SettlementResult::Clear);
 }
@@ -128,13 +134,13 @@ fn honest_path_clears() {
 #[test]
 fn stale_path_rejected_even_when_reexecution_agrees() {
     let committer = make_committer(0x101);
-    let gate = MockSettlementGate::new(MockVerifier::new());
+    let gate = MockSettlementGate::new(MockVerifier::new(), MockCanonicalStateOracle::always_fresh());
     let thresholds = FreshnessThresholds::default_base_mainnet();
 
     let root = build_root(canonical_weights(), canonical_prompt(), canonical_input_manifest());
     let output = run_inference(&canonical_weights(), &canonical_prompt());
     let receipt = committer
-        .commit(root, hash_output(&output), commit_anchor())
+        .commit(root.clone(), hash_output(&output), commit_anchor())
         .unwrap();
 
     let stale = TripleAnchor::new(
@@ -143,7 +149,7 @@ fn stale_path_rejected_even_when_reexecution_agrees() {
         COMMIT_DRAND + 20,
     );
     let result = gate
-        .verify_and_settle(&receipt, &stale, &thresholds)
+        .verify_and_settle(&receipt, &root, &stale, &thresholds)
         .unwrap();
 
     match result {
@@ -207,13 +213,13 @@ fn m3_billing_inflation_detected_by_output_hash_binding() {
 #[test]
 fn m4_capacity_falsification_rejected_by_attestation_verifier() {
     let committer = make_committer(0x105);
-    let gate = MockSettlementGate::new(MockVerifier::new());
+    let gate = MockSettlementGate::new(MockVerifier::new(), MockCanonicalStateOracle::always_fresh());
     let thresholds = FreshnessThresholds::default_base_mainnet();
 
     let root = build_root(canonical_weights(), canonical_prompt(), canonical_input_manifest());
     let output = run_inference(&canonical_weights(), &canonical_prompt());
     let mut receipt: FreshnessCommitment = committer
-        .commit(root, hash_output(&output), commit_anchor())
+        .commit(root.clone(), hash_output(&output), commit_anchor())
         .unwrap();
 
     receipt.attestation_chain = AttestationChain {
@@ -222,7 +228,7 @@ fn m4_capacity_falsification_rejected_by_attestation_verifier() {
     };
 
     let err = gate
-        .verify_and_settle(&receipt, &fresh_now(), &thresholds)
+        .verify_and_settle(&receipt, &root, &fresh_now(), &thresholds)
         .unwrap_err();
     assert_eq!(err, PocError::InvalidAttestation);
 }

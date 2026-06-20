@@ -12,15 +12,39 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use proof_of_context::{
-    anchor::TripleAnchor,
+    anchor::{
+        TripleAnchor, BASE_BLOCK_PERIOD_SECS, BASE_MAINNET_GENESIS_UNIX, DRAND_GENESIS_UNIX,
+        DRAND_PERIOD_SECS,
+    },
     commitment::{CommitmentVerifier, ContextCommitter},
     context::{
         AttentionImpl, ExecutionContextRoot, InferenceConfig, PrecisionMode, SamplingParams,
     },
     freshness::{FreshnessThresholds, FreshnessType},
-    mock::{MockCommitter, MockSettlementGate, MockVerifier},
+    mock::{MockCanonicalStateOracle, MockCommitter, MockSettlementGate, MockVerifier},
     settle::{SettlementGate, SettlementResult},
 };
+
+/// A Drand round whose wall-time (~2025-04-29) sits well after Base genesis,
+/// so a Base block height can be derived for it. Used as the commit clock.
+const BASE_ROUND: u64 = 5_015_631;
+
+/// Build a **fully** internally-consistent commit anchor from a Drand round:
+/// all three clocks (block, TEE, Drand) are derived from the one wall-time,
+/// so the gate's `consistent` predicate passes under both the default and
+/// `real-anchors` features (the latter also checks the block↔Drand leg).
+fn consistent_anchor(drand_round: u64) -> TripleAnchor {
+    let wall = DRAND_GENESIS_UNIX + drand_round * DRAND_PERIOD_SECS;
+    let block = (wall - BASE_MAINNET_GENESIS_UNIX) / BASE_BLOCK_PERIOD_SECS;
+    TripleAnchor::new(block, (wall as u128) * 1_000_000_000, drand_round)
+}
+
+/// A settlement-time clock at a given block height. `now` is never checked
+/// for internal consistency (only the commit anchor is), so only its block
+/// height — which drives `f_s` — is meaningful here.
+fn now_at_block(block_height: u64) -> TripleAnchor {
+    TripleAnchor::new(block_height, 0, 0)
+}
 
 /// Build a deterministic sample context root.  Tests drive seeds into this
 /// to produce distinct roots when needed.
@@ -58,19 +82,21 @@ fn mock_committer(seed: u64) -> MockCommitter {
 fn end_to_end_fresh_commitment_clears_settlement() {
     let committer = mock_committer(1);
     let verifier = MockVerifier::new();
-    let gate = MockSettlementGate::new(verifier);
+    let gate = MockSettlementGate::new(verifier, MockCanonicalStateOracle::always_fresh());
 
     let root = sample_root(42);
     let output_hash = [0x22; 32];
-    let commit_anchor = TripleAnchor::new(1_000, 1_700_000_000_000_000_000, 60_000);
+    let commit_anchor = consistent_anchor(BASE_ROUND);
 
-    let commitment = committer.commit(root, output_hash, commit_anchor).unwrap();
+    let commitment = committer.commit(root.clone(), output_hash, commit_anchor).unwrap();
 
     // "Now" is 1 block later — well within all thresholds.
-    let now = TripleAnchor::new(1_001, 1_700_000_002_000_000_000, 60_000);
+    let now = now_at_block(commit_anchor.block_height + 1);
     let thresholds = FreshnessThresholds::default_base_mainnet();
 
-    let result = gate.verify_and_settle(&commitment, &now, &thresholds).unwrap();
+    let result = gate
+        .verify_and_settle(&commitment, &root, &now, &thresholds)
+        .unwrap();
     assert_eq!(result, SettlementResult::Clear);
 }
 
@@ -78,20 +104,20 @@ fn end_to_end_fresh_commitment_clears_settlement() {
 fn end_to_end_stale_block_height_is_rejected() {
     let committer = mock_committer(2);
     let verifier = MockVerifier::new();
-    let gate = MockSettlementGate::new(verifier);
+    let gate = MockSettlementGate::new(verifier, MockCanonicalStateOracle::always_fresh());
 
     let root = sample_root(42);
-    let commit_anchor = TripleAnchor::new(1_000, 1_700_000_000_000_000_000, 60_000);
+    let commit_anchor = consistent_anchor(BASE_ROUND);
 
-    let commitment = committer.commit(root, [0u8; 32], commit_anchor).unwrap();
+    let commitment = committer.commit(root.clone(), [0u8; 32], commit_anchor).unwrap();
 
-    // Jump forward 100 blocks (well beyond max_fs_blocks = 300 at this
-    // scale? No — 300 is the max, so 100 alone is fine. Use 500 to
-    // trip settlement-window).
-    let now = TripleAnchor::new(1_500, 1_700_000_000_000_000_000, 60_000);
+    // Jump forward 500 blocks — beyond max_fs_blocks (300) → trips f_s.
+    let now = now_at_block(commit_anchor.block_height + 500);
     let thresholds = FreshnessThresholds::default_base_mainnet();
 
-    let result = gate.verify_and_settle(&commitment, &now, &thresholds).unwrap();
+    let result = gate
+        .verify_and_settle(&commitment, &root, &now, &thresholds)
+        .unwrap();
     match result {
         SettlementResult::Rejected(violations) => {
             assert!(
@@ -104,27 +130,35 @@ fn end_to_end_stale_block_height_is_rejected() {
 }
 
 #[test]
-fn end_to_end_drand_skew_triggers_computational_freshness() {
+fn end_to_end_inconsistent_anchor_triggers_computational_freshness() {
     let committer = mock_committer(3);
     let verifier = MockVerifier::new();
-    let gate = MockSettlementGate::new(verifier);
+    let gate = MockSettlementGate::new(verifier, MockCanonicalStateOracle::always_fresh());
 
     let root = sample_root(42);
-    let commit_anchor = TripleAnchor::new(1_000, 1_700_000_000_000_000_000, 60_000);
 
-    let commitment = committer.commit(root, [0u8; 32], commit_anchor).unwrap();
+    // A tampered/desynced commit anchor: TEE wall-time disagrees with the
+    // Drand-derived wall-time by 120 s — far past the ±35 s internal
+    // tolerance. `consistent` is now a property of the commit anchor alone
+    // (not A-vs-now), so this is what trips Computational.
+    let base = consistent_anchor(BASE_ROUND);
+    let tee_ns = base.tee_timestamp + 120 * 1_000_000_000;
+    let commit_anchor = TripleAnchor::new(base.block_height, tee_ns, base.drand_round);
 
-    // "Now" is close on block (inside max_fs) but Drand round has
-    // advanced 5 rounds past the commit — beyond the ±1 skew tolerance.
-    let now = TripleAnchor::new(1_001, 1_700_000_002_000_000_000, 60_005);
+    let commitment = committer.commit(root.clone(), [0u8; 32], commit_anchor).unwrap();
+
+    // "Now" is a normal, near settlement clock — within max_fs.
+    let now = now_at_block(commit_anchor.block_height + 1);
     let thresholds = FreshnessThresholds::default_base_mainnet();
 
-    let result = gate.verify_and_settle(&commitment, &now, &thresholds).unwrap();
+    let result = gate
+        .verify_and_settle(&commitment, &root, &now, &thresholds)
+        .unwrap();
     match result {
         SettlementResult::Rejected(violations) => {
             assert!(
                 violations.contains(&FreshnessType::Computational),
-                "5-round Drand divergence MUST trip computational-freshness"
+                "internally inconsistent commit anchor MUST trip computational-freshness"
             );
         }
         SettlementResult::Clear => panic!("expected rejection but got Clear"),
@@ -135,19 +169,21 @@ fn end_to_end_drand_skew_triggers_computational_freshness() {
 fn tampered_signature_fails_verification() {
     let committer = mock_committer(4);
     let verifier = MockVerifier::new();
-    let gate = MockSettlementGate::new(verifier);
+    let gate = MockSettlementGate::new(verifier, MockCanonicalStateOracle::always_fresh());
 
     let root = sample_root(42);
-    let commit_anchor = TripleAnchor::new(1_000, 1_700_000_000_000_000_000, 60_000);
-    let mut commitment = committer.commit(root, [0u8; 32], commit_anchor).unwrap();
+    let commit_anchor = consistent_anchor(BASE_ROUND);
+    let mut commitment = committer.commit(root.clone(), [0u8; 32], commit_anchor).unwrap();
 
     // Flip a byte of the signature.
     commitment.signature[0] ^= 0xFF;
 
-    let now = TripleAnchor::new(1_001, 1_700_000_002_000_000_000, 60_000);
+    let now = now_at_block(commit_anchor.block_height + 1);
     let thresholds = FreshnessThresholds::default_base_mainnet();
 
-    let err = gate.verify_and_settle(&commitment, &now, &thresholds).unwrap_err();
+    let err = gate
+        .verify_and_settle(&commitment, &root, &now, &thresholds)
+        .unwrap_err();
     assert_eq!(err, proof_of_context::PocError::InvalidSignature);
 }
 
@@ -155,20 +191,22 @@ fn tampered_signature_fails_verification() {
 fn tampered_output_hash_fails_verification() {
     let committer = mock_committer(5);
     let verifier = MockVerifier::new();
-    let gate = MockSettlementGate::new(verifier);
+    let gate = MockSettlementGate::new(verifier, MockCanonicalStateOracle::always_fresh());
 
     let root = sample_root(42);
-    let commit_anchor = TripleAnchor::new(1_000, 1_700_000_000_000_000_000, 60_000);
-    let mut commitment = committer.commit(root, [0x11; 32], commit_anchor).unwrap();
+    let commit_anchor = consistent_anchor(BASE_ROUND);
+    let mut commitment = committer.commit(root.clone(), [0x11; 32], commit_anchor).unwrap();
 
     // Corrupt the claimed output hash after signing.
     commitment.output_hash = [0x99; 32];
 
-    let now = TripleAnchor::new(1_001, 1_700_000_002_000_000_000, 60_000);
+    let now = now_at_block(commit_anchor.block_height + 1);
     let thresholds = FreshnessThresholds::default_base_mainnet();
 
     // The signing digest no longer matches → signature verification fails.
-    let err = gate.verify_and_settle(&commitment, &now, &thresholds).unwrap_err();
+    let err = gate
+        .verify_and_settle(&commitment, &root, &now, &thresholds)
+        .unwrap_err();
     assert_eq!(err, proof_of_context::PocError::InvalidSignature);
 }
 

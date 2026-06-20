@@ -30,6 +30,18 @@ pub enum PocError {
     #[error("output hash mismatch")]
     OutputHashMismatch,
 
+    /// The disclosed execution-context root does not hash to the
+    /// `context_root` committed to. A worker disclosed a context different
+    /// from what it signed — settlement must abort before reading any field.
+    #[error("disclosed context root does not match committed root")]
+    RootMismatch,
+
+    /// The canonical-state oracle could not answer (e.g. the model is not in
+    /// the canonical lineage, or the input-world state is unknown). The gate
+    /// maps this to a freshness rejection rather than clearing on ignorance.
+    #[error("canonical-state oracle unavailable for the queried state")]
+    OracleUnavailable,
+
     /// The canonical root on-chain is ahead of the commitment's snapshot,
     /// and the renewal window has closed. Worker must re-commit.
     #[error("commitment expired — canonical root advanced past renewal window")]

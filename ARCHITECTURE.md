@@ -56,9 +56,13 @@ A `FreshnessCommitment` is the signed artifact a worker produces. It binds `(con
 
 `ContextCommitter` is the producer trait (worker-side). `CommitmentVerifier` is the signature-and-attestation-chain-verification trait, independent of settlement gating (which is `settle`'s job).
 
+### `oracle` — `CanonicalStateOracle`
+
+Settlement-time canonical-state lookups for the two freshness predicates that need state external to the commitment: `model_epoch_distance` (`f_m`) and `input_lag_blocks` (`f_i`). `consistent` and `f_s` are decidable from the commitment and `now` alone; `f_m`/`f_i` are not. This is the surface the paper's **H4** assumption (an honest canonical-state oracle) attaches to. v0.3 ships the trait plus `mock::MockCanonicalStateOracle`; the real implementation (on-chain model-root+epoch registry for `f_m`, BaseOracle for `f_i`) is pieza 1b.
+
 ### `settle` — `SettlementGate`, `SettlementResult`
 
-The gate that decides whether to clear payment. This is the *attestation-as-settlement* distinction of §3.6 made concrete: the gate consumes a commitment, the current anchor, and the thresholds, and returns either `Clear` or `Rejected(Vec<FreshnessType>)`. The violated freshness types are reported so the protocol can emit the correct refund or slash event.
+The gate that decides whether to clear payment. This is the *attestation-as-settlement* distinction of §3.6 made concrete: the gate consumes a commitment, the **disclosed** execution-context root (mechanism (i) — bound to the committed `context_root` before any field is read), the current anchor, and the thresholds, and returns either `Clear` or `Rejected(Vec<FreshnessType>)`. As of v0.3 it enforces `consistent` (internal triple-anchor agreement), `f_m` and `f_i` (against a `CanonicalStateOracle`), and `f_s` — integrity plus three of the four freshness types. `f_c` is deferred (not measurable from `(A, now)`; handled structurally via commit-at-completion). The violated freshness types are reported so the protocol can emit the correct refund or slash event.
 
 ### `renewal` — `Renewal`, `RenewalOutcome`
 
@@ -93,4 +97,4 @@ Phase 2 (the first real-cryptography phase) landed in v0.2:
 - `thiserror` replacing the hand-rolled error enum
 - Serde implementations on all public structs
 
-Phase 3 introduces the TEE backend (TDX quote parser + H100 attestation verifier) and live anchor clients; the Drand and JSON-RPC block-height clients have already landed under the `real-anchors` feature (Phase 3a), with the TEE backend (Phase 3b) pending. Phase 4 is the SUR Protocol integration. See [`ROADMAP.md`](./ROADMAP.md).
+Phase 3a / v0.3 (pieza 1) added the `CanonicalStateOracle` trait and wired `consistent` + `f_m` + `f_i` + `f_s` into the gate, with `consistent` redefined as internal triple-anchor agreement and `f_c` deferred. The Drand and JSON-RPC block-height clients are also landed under the `real-anchors` feature. Phase 3b / pieza 1b pends: the TEE backend (TDX quote parser + H100 attestation verifier) and the *real* canonical-state oracle (on-chain model-root registry + BaseOracle). Phase 4 is the SUR Protocol integration. See [`ROADMAP.md`](./ROADMAP.md).

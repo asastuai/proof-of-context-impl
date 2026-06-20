@@ -60,7 +60,7 @@ use proof_of_context::{
         SamplingParams,
     },
     freshness::{FreshnessThresholds, FreshnessType},
-    mock::{MockCommitter, MockSettlementGate, MockVerifier},
+    mock::{MockCanonicalStateOracle, MockCommitter, MockSettlementGate, MockVerifier},
     settle::{SettlementGate, SettlementResult},
 };
 
@@ -224,9 +224,13 @@ fn main() {
     let request = AgentRequest::pyth_btc_query();
     let committer = make_committer(0x100, "eigencompute-worker");
     let verifier = MockVerifier::new();
-    let gate = MockSettlementGate::new(verifier);
+    let gate = MockSettlementGate::new(verifier, MockCanonicalStateOracle::always_fresh());
 
-    let commit_anchor = TripleAnchor::new(281_520_119, 1_745_900_000_000_000_000, 60_000);
+    // Fully internally-consistent commit anchor (~2025-04-29): TEE wall-time
+    // (1_745_899_980 s) = Drand-derived wall-time (genesis + 5_015_631 × 30),
+    // and the block height derives from Base genesis, so `consistent` holds
+    // under both default and real-anchors features.
+    let commit_anchor = TripleAnchor::new(29_555_316, 1_745_899_980_000_000_000, 5_015_631);
 
     // -------------------------------------------------------------------------
     // 0. Honest path
@@ -239,9 +243,9 @@ fn main() {
         .commit(honest_root.clone(), honest_output_hash, commit_anchor)
         .expect("commit must succeed");
 
-    let now_fresh = TripleAnchor::new(281_520_120, 1_745_900_002_000_000_000, 60_000);
+    let now_fresh = TripleAnchor::new(29_555_317, 1_745_899_982_000_000_000, 5_015_631);
     let result = gate
-        .verify_and_settle(&honest_receipt, &now_fresh, &thresholds)
+        .verify_and_settle(&honest_receipt, &honest_root, &now_fresh, &thresholds)
         .expect("verify_and_settle must not error on a valid receipt");
     println!("  settlement result: {:?}", result);
     assert_eq!(result, SettlementResult::Clear);
@@ -259,7 +263,7 @@ fn main() {
         commit_anchor.drand_round + 20,
     );
     let result = gate
-        .verify_and_settle(&honest_receipt, &now_stale, &thresholds)
+        .verify_and_settle(&honest_receipt, &honest_root, &now_stale, &thresholds)
         .expect("verify_and_settle must succeed even when rejecting");
     println!("  settlement result: {:?}", result);
     let reexec_ok = reexecute_and_compare(&canonical, &request, &honest_receipt);
@@ -288,7 +292,7 @@ fn main() {
         .expect("commit must succeed");
 
     let signature_verifies = gate
-        .verify_and_settle(&m1_receipt, &now_fresh, &thresholds)
+        .verify_and_settle(&m1_receipt, &honest_root, &now_fresh, &thresholds)
         .expect("freshness check is independent of cheating");
     println!("  signature + freshness: {:?}", signature_verifies);
     println!("  (settlement gate alone cannot tell — it does not re-execute)");
@@ -369,7 +373,7 @@ fn main() {
         commit_anchor,
     );
 
-    let result = gate.verify_and_settle(&m4_receipt, &now_fresh, &thresholds);
+    let result = gate.verify_and_settle(&m4_receipt, &honest_root, &now_fresh, &thresholds);
     println!("  settlement result: {:?}", result);
     match result {
         Err(proof_of_context::PocError::InvalidAttestation) => {

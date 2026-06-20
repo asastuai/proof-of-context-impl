@@ -7,13 +7,17 @@
 //! for the conceptual framework. This crate translates that framework into
 //! Rust traits and types.
 //!
-//! **Status:** Phase 2 (v0.2). The core primitives are implemented with real
-//! cryptography — `ExecutionContextRoot::merkle_root` (SHA-256 over the
-//! canonical preimage), Ed25519 commitment signing and verification, and the
-//! triple-anchor divergence check — and exercised end-to-end (commit → verify
-//! → settle → reject-stale) by a software-key test suite. TEE-backed
-//! attestation and the canonical-state oracle for model/input freshness are
-//! Phase 3; see `ROADMAP.md`.
+//! **Status:** Phase 3a / v0.3 (pieza 1). The core primitives are implemented
+//! with real cryptography — `ExecutionContextRoot::merkle_root` (SHA-256 over
+//! the canonical preimage), Ed25519 commitment signing and verification — and
+//! the settlement gate now enforces `consistent` (internal triple-anchor
+//! agreement) plus `f_m`, `f_i` (against a [`oracle::CanonicalStateOracle`],
+//! mocked) and `f_s`: integrity plus three of the four freshness types,
+//! exercised end-to-end by a software-key test suite. `f_c` is deferred (not
+//! measurable from the commitment; handled structurally via
+//! commit-at-completion). TEE-backed attestation and the *real* canonical-state
+//! oracle (on-chain model-root registry for `f_m`, BaseOracle for `f_i`) are
+//! pieza 1b / Phase 3b; see `ROADMAP.md`.
 //!
 //! ## One-sentence framing
 //!
@@ -27,6 +31,7 @@
 //! - [`context`] — the execution-context root (what the commitment binds to).
 //! - [`freshness`] — the four freshness types (`f_c`, `f_m`, `f_i`, `f_s`) and threshold parameters.
 //! - [`commitment`] — a proof-of-context commitment and the [`ContextCommitter`] trait.
+//! - [`oracle`] — the [`CanonicalStateOracle`] trait for `f_m`/`f_i` lookups.
 //! - [`settle`] — the [`SettlementGate`] trait that refuses to clear stale commitments.
 //! - [`renewal`] — the [`Renewal`] trait implementing prospective-only root bumps.
 //! - [`attestation`] — TEE attestation chain verification hooks.
@@ -54,7 +59,9 @@
 //! let gate: Box<dyn SettlementGate> = /* protocol-configured */ todo!();
 //! let now: TripleAnchor = /* read current state */ todo!();
 //! let thresholds = FreshnessThresholds::default_base_mainnet();
-//! if gate.is_settlement_eligible(&commitment, &now, &thresholds).unwrap() {
+//! // `root` is disclosed at settlement so the gate can read weights/input
+//! // hashes after binding it to the committed context_root.
+//! if gate.is_settlement_eligible(&commitment, &root, &now, &thresholds).unwrap() {
 //!     // Release payment.
 //! }
 //! ```
@@ -69,6 +76,7 @@ pub mod context;
 pub mod error;
 pub mod freshness;
 pub mod mock;
+pub mod oracle;
 pub mod renewal;
 pub mod settle;
 
@@ -81,5 +89,6 @@ pub use commitment::{ContextCommitter, FreshnessCommitment};
 pub use context::ExecutionContextRoot;
 pub use error::PocError;
 pub use freshness::{FreshnessThresholds, FreshnessType};
+pub use oracle::CanonicalStateOracle;
 pub use renewal::Renewal;
 pub use settle::{SettlementGate, SettlementResult};
