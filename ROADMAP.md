@@ -50,6 +50,26 @@ Phase numbering follows the Working Bible protocol used throughout the author's 
 
 **Gate achieved:** `cargo test --features real-anchors --lib -- --ignored live` succeeds against live Drand mainnet and Base mainnet RPC.
 
+### Pieza 1 — Oracle-gated freshness (LANDED, `v0.3.0`)
+
+**Output:**
+- `oracle::CanonicalStateOracle` trait + `MockCanonicalStateOracle`; gate enforces `consistent + f_m + f_i + f_s` (integrity + 3 of 4 freshness types) against the disclosed context root. `consistent` redefined to internal triple-anchor agreement; `f_c` deferred (commit-at-completion). 40 tests (default), 45 with `real-anchors`.
+
+### Pieza 1b-i — Real input-freshness oracle (LANDED, `--features oracle-fi`)
+
+**Output:**
+- `canonical` module — canonical-JSON SHA-256 byte-identical to BaseOracle (cross-language vectors pinned).
+- `input_freshness::BaseOracleInputOracle` — **witness-presented** real `f_i` oracle: verifies BaseOracle `_poc` attestations (Ed25519 + canonical hash), reconstructs the `input_manifest_root`, decides lag from `anchors.block_height`. No BaseOracle changes; no network at settlement.
+- `input_freshness::SplitOracle` — composes "f_m mocked, f_i real" with zero gate change.
+- 12 integration tests + canonical vectors; default build untouched (the module is feature-gated).
+
+### Pieza 1b-m — Real model-freshness registry (pending)
+
+**Goals:**
+- On-chain model-root + epoch registry exposing canonical `weights_hash` per epoch with activation block height; read at the settlement anchor (reuse the `clients` EVM-RPC scaffold for an `eth_call` reader).
+- A real `Renewal::evaluate` backed by the same registry (prospective-only bump semantics).
+- **Decision required:** trust model — single publisher vs committee/quorum (paper §7 constraint 8 leans multi-source quorum).
+
 ### Phase 3b — TEE backend (pending)
 
 **Goals:**

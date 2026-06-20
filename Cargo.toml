@@ -21,6 +21,12 @@ default = []
 # transitive deps. Opt in only when you actually need to fetch.
 real-anchors = ["dep:ureq", "dep:serde_json"]
 
+# Enable the real input-freshness (f_i) oracle: the `canonical` + `input_freshness`
+# modules that verify BaseOracle `_poc` attestations (witness-presented, no network)
+# and decide f_i against them. Adds serde_json. Pieza 1b-i. The seconds->blocks
+# fallback inside it additionally requires `real-anchors`.
+oracle-fi = ["dep:serde_json"]
+
 [dependencies]
 # Phase 2 primitives:
 #   - sha2 for Merkle commitments over ExecutionContextRoot

@@ -15,9 +15,12 @@
 //! mocked) and `f_s`: integrity plus three of the four freshness types,
 //! exercised end-to-end by a software-key test suite. `f_c` is deferred (not
 //! measurable from the commitment; handled structurally via
-//! commit-at-completion). TEE-backed attestation and the *real* canonical-state
-//! oracle (on-chain model-root registry for `f_m`, BaseOracle for `f_i`) are
-//! pieza 1b / Phase 3b; see `ROADMAP.md`.
+//! commit-at-completion). The `f_i` axis now has a **real** oracle (pieza 1b-i,
+//! behind `--features oracle-fi`): [`input_freshness::BaseOracleInputOracle`]
+//! verifies witness-presented BaseOracle attestations and decides `f_i` from
+//! their block anchor, composed with a model oracle via
+//! [`input_freshness::SplitOracle`]. The *real* `f_m` model-root registry and
+//! TEE-backed attestation remain pieza 1b-m / Phase 3b; see `ROADMAP.md`.
 //!
 //! ## One-sentence framing
 //!
@@ -80,6 +83,16 @@ pub mod oracle;
 pub mod renewal;
 pub mod settle;
 
+/// Canonical-JSON SHA-256 (byte-identical to BaseOracle). Opt in with
+/// `--features oracle-fi`.
+#[cfg(feature = "oracle-fi")]
+pub mod canonical;
+
+/// Real input-freshness (`f_i`) oracle over BaseOracle attestations (pieza
+/// 1b-i). Opt in with `--features oracle-fi`.
+#[cfg(feature = "oracle-fi")]
+pub mod input_freshness;
+
 /// Real-anchor clients (Drand + EVM RPC). Opt in with `--features real-anchors`.
 #[cfg(feature = "real-anchors")]
 pub mod clients;
@@ -91,4 +104,9 @@ pub use error::PocError;
 pub use freshness::{FreshnessThresholds, FreshnessType};
 pub use oracle::CanonicalStateOracle;
 pub use renewal::Renewal;
+
+#[cfg(feature = "oracle-fi")]
+pub use input_freshness::{
+    BaseOracleInputOracle, InputAttestation, InputFreshnessWitness, SplitOracle,
+};
 pub use settle::{SettlementGate, SettlementResult};
