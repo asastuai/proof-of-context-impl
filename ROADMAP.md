@@ -77,6 +77,18 @@ Phase numbering follows the Working Bible protocol used throughout the author's 
 - An **on-chain registry source** (`eth_call` reader via the `clients` scaffold) behind the same lineage-adoption boundary — v1 is offline quorum-signed.
 - A real `Renewal::evaluate`: the trait's signature `(commitment, current_canonical_root)` carries neither `now` nor thresholds, so it cannot distinguish prospective-only protection from window expiry. **Needs a trait redesign before a faithful implementation.**
 
+### Solana brick 1 — dark-pool multi-party freshness (LANDED, `--features darkpool-sol`)
+
+**Deployment target decision:** proof-of-context points at SUR **Solana** (the Base adapters are the EVM/reference path). The consumer is `a2a_darkpool` — agents negotiate a price (Intent ↔ Response); a negotiated trade should clear only if every agent's quote used fresh context.
+
+**Output:**
+- `price_freshness::PriceFreshnessOracle` — seconds-native `f_i` witness: a signed `PriceAttestation` (`market_id`, `price`, `price_as_of_secs`) presented per market; age = `now_secs − price_as_of`. The Solana analogue of the BaseOracle f_i oracle (the canonical price-as-of is `perp_engine::Market.last_price_update`).
+- `darkpool::verify_party_contexts` — **multi-party** gate: each party's commitment is integrity-checked (hard `Err` on bad sig / root mismatch), then `consistent` (TEE↔Drand only — a Solana anchor's block is a slot, not a Base block), `f_i` (price age, seconds), `f_s` (quote→settle window, seconds). Returns `DarkPoolSettlement::{Clear, Rejected(Vec<PartyVerdict>)}` with per-party + per-FreshnessType attribution. `f_m`/`f_c` deferred.
+- `anchor::TripleAnchor::tee_drand_consistent` — extracted chain-neutral consistency (no Base block leg) for unix-seconds venues.
+- 10 integration tests; default build untouched (feature-gated).
+
+**Next (Solana brick 2, recommended):** an off-chain **settlement keeper** that runs `verify_party_contexts` and submits `a2a_darkpool::accept_and_settle` only on `Clear` (zero Anchor-program change; trust = liveness only). **Brick 3:** on-chain enforcement in `accept_and_settle` via the ed25519-precompile + Instructions-sysvar pattern already in `order_settlement/signature.rs`. Author decision deferred to brick 2: confirm the operator key signing `oracle_router::push_price` is what `PriceFreshnessOracle` pins.
+
 ### Phase 3b — TEE backend (pending)
 
 **Goals:**

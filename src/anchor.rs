@@ -109,14 +109,8 @@ impl TripleAnchor {
         &self,
         thresholds: &crate::freshness::FreshnessThresholds,
     ) -> bool {
-        let drand_secs = self.drand_wall_time_secs();
-        let tee_secs = self.tee_wall_time_secs();
-
-        // TEE ↔ Drand: tolerate the configured TEE skew plus the Drand
-        // quantization slack (drand_skew rounds × period).
-        let tee_drand_tol =
-            thresholds.tee_skew_secs + thresholds.drand_skew.saturating_mul(DRAND_PERIOD_SECS);
-        if abs_diff_u64(tee_secs, drand_secs) > tee_drand_tol {
+        // TEE ↔ Drand: always checked (chain-neutral wall clocks).
+        if !self.tee_drand_consistent(thresholds) {
             return false;
         }
 
@@ -127,12 +121,27 @@ impl TripleAnchor {
                 + self.block_height.saturating_mul(BASE_BLOCK_PERIOD_SECS);
             let block_tol = thresholds.block_skew.saturating_mul(BASE_BLOCK_PERIOD_SECS)
                 + thresholds.drand_skew.saturating_mul(DRAND_PERIOD_SECS);
-            if abs_diff_u64(block_secs, drand_secs) > block_tol {
+            if abs_diff_u64(block_secs, self.drand_wall_time_secs()) > block_tol {
                 return false;
             }
         }
 
         true
+    }
+
+    /// Internal agreement of the **TEE and Drand** wall clocks only (no block
+    /// leg), within `tee_skew_secs + drand_skew × 30 s`. This is the
+    /// chain-neutral consistency check for unix-seconds venues (e.g. the SUR
+    /// Solana dark pool) whose `block_height` is not a Base block and must not
+    /// be cross-checked against Base genesis. [`internally_consistent`] adds the
+    /// Base block leg on top of this when `real-anchors` is enabled.
+    pub fn tee_drand_consistent(
+        &self,
+        thresholds: &crate::freshness::FreshnessThresholds,
+    ) -> bool {
+        let tol =
+            thresholds.tee_skew_secs + thresholds.drand_skew.saturating_mul(DRAND_PERIOD_SECS);
+        abs_diff_u64(self.tee_wall_time_secs(), self.drand_wall_time_secs()) <= tol
     }
 
     /// Return `true` if the three clocks diverge beyond any of the given

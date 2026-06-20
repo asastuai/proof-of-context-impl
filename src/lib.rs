@@ -27,6 +27,12 @@
 //! TEE-backed attestation and an on-chain registry source remain Phase 3b; a
 //! real `Renewal::evaluate` needs a trait redesign (see `ROADMAP.md`).
 //!
+//! The first **Solana**-targeted adapter ships behind `--features darkpool-sol`
+//! ([`darkpool`] + [`price_freshness`]): a **seconds-native, multi-party** gate
+//! for the SUR Solana agent-to-agent dark pool, where a negotiated trade clears
+//! only if every agent's quote was made against fresh context. This is the
+//! deployment target (the Base adapters are the EVM/reference path).
+//!
 //! ## One-sentence framing
 //!
 //! > PAL\*M attests that a computation happened correctly; proof-of-context
@@ -88,9 +94,9 @@ pub mod oracle;
 pub mod renewal;
 pub mod settle;
 
-/// Canonical-JSON SHA-256 (byte-identical to BaseOracle). Opt in with
-/// `--features oracle-fi` or `--features oracle-fm`.
-#[cfg(any(feature = "oracle-fi", feature = "oracle-fm"))]
+/// Canonical-JSON SHA-256 (byte-identical to BaseOracle). Opt in with any of
+/// `--features oracle-fi` / `oracle-fm` / `darkpool-sol`.
+#[cfg(any(feature = "oracle-fi", feature = "oracle-fm", feature = "darkpool-sol"))]
 pub mod canonical;
 
 /// Real input-freshness (`f_i`) oracle over BaseOracle attestations (pieza
@@ -102,6 +108,17 @@ pub mod input_freshness;
 /// registry (pieza 1b-m). Opt in with `--features oracle-fm`.
 #[cfg(feature = "oracle-fm")]
 pub mod model_registry;
+
+/// Seconds-based input-freshness (`f_i`) witness for a unix-seconds venue — the
+/// SUR Solana price-as-of oracle. Opt in with `--features darkpool-sol`.
+#[cfg(feature = "darkpool-sol")]
+pub mod price_freshness;
+
+/// Multi-party freshness gate for the SUR Solana agent-to-agent dark pool: a
+/// negotiated trade clears iff every party's quote used fresh context. Opt in
+/// with `--features darkpool-sol`.
+#[cfg(feature = "darkpool-sol")]
+pub mod darkpool;
 
 /// Real-anchor clients (Drand + EVM RPC). Opt in with `--features real-anchors`.
 #[cfg(feature = "real-anchors")]
@@ -120,4 +137,12 @@ pub use input_freshness::{BaseOracleInputOracle, InputAttestation, InputFreshnes
 
 #[cfg(feature = "oracle-fm")]
 pub use model_registry::{ModelEpoch, ModelLineage, QuorumModelOracle, QuorumSignature};
+
+#[cfg(feature = "darkpool-sol")]
+pub use darkpool::{
+    verify_party_contexts, DarkPoolSettlement, DarkPoolThresholds, PartyContext, PartyRole,
+    PartyVerdict,
+};
+#[cfg(feature = "darkpool-sol")]
+pub use price_freshness::{PriceAttestation, PriceFreshnessOracle};
 pub use settle::{SettlementGate, SettlementResult};

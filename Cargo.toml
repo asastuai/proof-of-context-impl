@@ -33,6 +33,13 @@ oracle-fi = ["dep:serde_json"]
 # M-of-N quorum and decides f_m against it. Adds serde_json. Pieza 1b-m.
 oracle-fm = ["dep:serde_json"]
 
+# Enable the Solana A2A dark-pool multi-party freshness adapter: the `canonical`
+# + `price_freshness` + `darkpool` modules. Seconds-native freshness (the SUR
+# Solana dark pool runs on unix-seconds, not blocks) over the TripleAnchor wall
+# clocks; gates an N-party negotiated trade so it clears iff every agent's quote
+# was made against fresh context. Off-chain verification only. Adds serde_json.
+darkpool-sol = ["dep:serde_json"]
+
 [dependencies]
 # Phase 2 primitives:
 #   - sha2 for Merkle commitments over ExecutionContextRoot
